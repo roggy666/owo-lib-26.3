@@ -1,50 +1,51 @@
 package io.wispforest.owo.ui.core;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.cursor.CursorType;
+import io.wispforest.owo.ui.util.SystemCursors;
 
 public enum CursorStyle {
     /**
      * The default cursor style defined by
      * the operating system
      */
-    NONE(0),
+    NONE(SystemCursors.NONE, "default"),
     /**
      * The default arrow-style pointing cursor
      */
-    POINTER(GLFW.GLFW_ARROW_CURSOR),
+    POINTER(SystemCursors.SDL_SYSTEM_CURSOR_DEFAULT, "arrow"),
 
     /**
      * The text selection, usually I-beam, cursor
      */
-    TEXT(GLFW.GLFW_IBEAM_CURSOR),
+    TEXT(SystemCursors.SDL_SYSTEM_CURSOR_TEXT, "ibeam"),
 
     /**
      * The hand cursor which signals clickable areas
      */
-    HAND(GLFW.GLFW_HAND_CURSOR),
+    HAND(SystemCursors.SDL_SYSTEM_CURSOR_POINTER, "pointing_hand"),
 
     /**
      * the Crosshair cursor
      */
-    CROSSHAIR(GLFW.GLFW_CROSSHAIR_CURSOR),
+    CROSSHAIR(SystemCursors.SDL_SYSTEM_CURSOR_CROSSHAIR, "crosshair"),
 
     /**
      * The cross-shaped cursor which signals
      * draggable/movable areas
      */
-    MOVE(GLFW.GLFW_RESIZE_ALL_CURSOR),
+    MOVE(SystemCursors.SDL_SYSTEM_CURSOR_MOVE, "resize_all"),
 
     /**
      * The horizontal resize cursor
      * @see #VERTICAL_RESIZE
      */
-    HORIZONTAL_RESIZE(GLFW.GLFW_HRESIZE_CURSOR),
+    HORIZONTAL_RESIZE(SystemCursors.SDL_SYSTEM_CURSOR_EW_RESIZE, "resize_ew"),
 
     /**
      * The vertical resize cursor
      * @see #HORIZONTAL_RESIZE
      */
-    VERTICAL_RESIZE(GLFW.GLFW_VRESIZE_CURSOR),
+    VERTICAL_RESIZE(SystemCursors.SDL_SYSTEM_CURSOR_NS_RESIZE, "resize_ns"),
 
     /**
      * The NorthWest-SouthEast resize cursor
@@ -52,7 +53,7 @@ public enum CursorStyle {
      *
      * @implNote This cursor style is not necessarily supported by all cursor themes
      */
-    NWSE_RESIZE(GLFW.GLFW_RESIZE_NWSE_CURSOR),
+    NWSE_RESIZE(SystemCursors.SDL_SYSTEM_CURSOR_NWSE_RESIZE, "resize_nwse"),
 
     /**
      * The NorthEast-SouthWest resize cursor
@@ -60,7 +61,7 @@ public enum CursorStyle {
      *
      * @implNote This cursor style is not necessarily supported by all cursor themes
      */
-    NESW_RESIZE(GLFW.GLFW_RESIZE_NESW_CURSOR),
+    NESW_RESIZE(SystemCursors.SDL_SYSTEM_CURSOR_NESW_RESIZE, "resize_nesw"),
 
 
     /**
@@ -68,10 +69,37 @@ public enum CursorStyle {
      *
      * @implNote This cursor style is not necessarily supported by all cursor themes
      */
-    NOT_ALLOWED(GLFW.GLFW_NOT_ALLOWED_CURSOR);
+    NOT_ALLOWED(SystemCursors.SDL_SYSTEM_CURSOR_NOT_ALLOWED, "not_allowed");
 
 
-    public final int glfw;
+    /**
+     * The SDL system cursor shape ({@code SDL_SystemCursor}) backing this style,
+     * or {@link SystemCursors#NONE} for the operating system default
+     */
+    public final int sdlShape;
+    private final String name;
 
-    CursorStyle(int glfw) {this.glfw = glfw;}
+    CursorStyle(int sdlShape, String name) {
+        this.sdlShape = sdlShape;
+        this.name = name;
+    }
+
+    /**
+     * @return The cursor type the game's window uses to select this style
+     */
+    public CursorType cursorType() {
+        return SystemCursors.cursorTypeFor(this.sdlShape, this.name);
+    }
+
+    /**
+     * @return The style backed by the given SDL system cursor shape,
+     * or {@link #NONE} if no style uses that shape
+     */
+    public static CursorStyle fromSdlShape(int sdlShape) {
+        for (var style : values()) {
+            if (style.sdlShape == sdlShape) return style;
+        }
+
+        return NONE;
+    }
 }

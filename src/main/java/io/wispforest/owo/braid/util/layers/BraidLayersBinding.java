@@ -65,10 +65,7 @@ public class BraidLayersBinding {
         state.app.processEvents(Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaTicks());
         state.app.draw(graphics);
 
-        var cursorStyle = ((LayerSurface) state.app.surface).currentCursorStyle;
-        if (cursorStyle != CursorStyle.NONE && CURSOR_MAPPINGS.get().containsKey(cursorStyle)) {
-            graphics.requestCursor(CURSOR_MAPPINGS.get().get(cursorStyle));
-        }
+        state.app.surface.applyCursor(graphics);
     }
 
     private static void setupLayers(Screen screen) {
@@ -120,18 +117,13 @@ public class BraidLayersBinding {
         public CursorStyle currentCursorStyle() {
             return this.currentCursorStyle;
         }
-    }
 
-    private static final Supplier<Map<CursorStyle, CursorType>> CURSOR_MAPPINGS = Suppliers.memoize(() -> Map.of(
-        CursorStyle.POINTER, CursorTypes.ARROW,
-        CursorStyle.TEXT, CursorTypes.IBEAM,
-        CursorStyle.CROSSHAIR, CursorTypes.CROSSHAIR,
-        CursorStyle.HAND, CursorTypes.POINTING_HAND,
-        CursorStyle.VERTICAL_RESIZE, CursorTypes.RESIZE_NS,
-        CursorStyle.HORIZONTAL_RESIZE, CursorTypes.RESIZE_EW,
-        CursorStyle.MOVE, CursorTypes.RESIZE_ALL,
-        CursorStyle.NOT_ALLOWED, CursorTypes.NOT_ALLOWED
-    ));
+        @Override
+        public void applyCursor(GuiGraphicsExtractor graphics) {
+            if (this.currentCursorStyle == CursorStyle.NONE) return;
+            graphics.requestCursor(this.currentCursorStyle.cursorType());
+        }
+    }
 
     // ---
 
@@ -162,11 +154,11 @@ public class BraidLayersBinding {
             });
 
             ScreenKeyboardEvents.allowKeyPress(screeen).register((screen, keyInput) -> {
-                return !tryHandleEvent(screen, new KeyPressEvent(keyInput.key(), keyInput.scancode(), keyInput.modifiers()));
+                return !tryHandleEvent(screen, new KeyPressEvent(keyInput.key(), keyInput.keycode(), keyInput.modifiers()));
             });
 
             ScreenKeyboardEvents.allowKeyRelease(screeen).register((screen, keyInput) -> {
-                return !tryHandleEvent(screen, new KeyReleaseEvent(keyInput.key(), keyInput.scancode(), keyInput.modifiers()));
+                return !tryHandleEvent(screen, new KeyReleaseEvent(keyInput.key(), keyInput.keycode(), keyInput.modifiers()));
             });
         });
     }

@@ -24,17 +24,17 @@ public abstract class LanguageReaderMixin {
         method = "collectDataPackTranslations",
         at = @At(
             value = "INVOKE",
-            target = "Lnet/minecraft/server/packs/resources/ResourceManager;listResources(Ljava/lang/String;Ljava/util/function/Predicate;)Ljava/util/Map;"
+            target = "Lnet/minecraft/server/packs/resources/ResourceManager;listResources(Ljava/lang/String;Lnet/minecraft/server/packs/resources/ResourceManager$Selector;)Ljava/util/Map;"
         )
     )
     private static Map<Identifier, Resource> json5$collectDataPackTranslations(
         ResourceManager instance,
         String s,
-        Predicate<Identifier> identifierPredicate,
+        ResourceManager.Selector selector,
         Operation<Map<Identifier, Resource>> original
     ) {
-        var base = original.call(instance, s, identifierPredicate);
-        original.call(instance, s, DataExtensionUtil.OptInIdentifierPredicate.of(path -> path.getPath().endsWith(".json5")))
+        var base = original.call(instance, s, selector);
+        original.call(instance, s, DataExtensionUtil.OptInSelector.of(path -> path.getPath().endsWith(".json5")))
             .forEach((identifier, resource) -> base.putIfAbsent(
                 identifier, new Resource(resource.source(), () -> coerceJson(resource.open()))
             ));

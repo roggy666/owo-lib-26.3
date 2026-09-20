@@ -1,16 +1,29 @@
 package io.wispforest.owo.braid.core.cursor;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.cursor.CursorType;
+import io.wispforest.owo.ui.util.SystemCursors;
 
 public final class SystemCursorStyle implements CursorStyle {
-    public final int glfwId;
 
-    SystemCursorStyle(int glfwId) {
-        this.glfwId = glfwId;
+    /**
+     * The SDL system cursor shape ({@code SDL_SystemCursor}) backing this style,
+     * or {@link SystemCursors#NONE} for the operating system default
+     */
+    public final int sdlShape;
+    private final String name;
+
+    SystemCursorStyle(int sdlShape, String name) {
+        this.sdlShape = sdlShape;
+        this.name = name;
     }
 
     @Override
-    public long allocate() {
-        return GLFW.glfwCreateStandardCursor(this.glfwId);
+    public CursorType cursorType() {
+        return SystemCursors.cursorTypeFor(this.sdlShape, this.name);
+    }
+
+    @Override
+    public String toString() {
+        return "SystemCursorStyle[" + this.name + "]";
     }
 }

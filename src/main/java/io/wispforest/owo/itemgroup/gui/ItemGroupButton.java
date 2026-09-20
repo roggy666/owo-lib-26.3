@@ -1,5 +1,7 @@
 package io.wispforest.owo.itemgroup.gui;
 
+import java.net.URI;
+import com.mojang.blaze3d.Blaze3D;
 import io.wispforest.owo.Owo;
 import io.wispforest.owo.itemgroup.Icon;
 import io.wispforest.owo.itemgroup.OwoItemGroup;
@@ -63,9 +65,9 @@ public final class ItemGroupButton implements OwoItemGroup.ButtonDefinition {
             final var client = Minecraft.getInstance();
             var screen = client.gui.screen();
             client.setScreenAndShow(new ConfirmLinkScreen(confirmed -> {
-                if (confirmed) Util.getPlatform().openUri(url);
+                if (confirmed) Blaze3D.openUri(URI.create(url));
                 client.setScreenAndShow(screen);
-            }, url, true));
+            }, URI.create(url), true));
         });
     }
 

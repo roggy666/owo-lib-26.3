@@ -1,7 +1,7 @@
 <h1 align="center">
     <img src="https://i.imgur.com/VXjFso4.png">
     <br>
-    oωo (owo-lib)
+    oωo (owo-lib) — Fabric 26.3 (Unofficial Port)
     <br>
     <a href="https://www.curseforge.com/minecraft/mc-mods/owo-lib">
         <img src="https://img.shields.io/badge/-CurseForge-gray?style=for-the-badge&logo=curseforge&labelColor=orange">
@@ -17,10 +17,26 @@
         <img src="https://img.shields.io/discord/825828008644313089?label=wisp%20forest&logo=discord&logoColor=white&style=for-the-badge">
     </a>
 </h1>
-    
+
+> [!NOTE]
+> **Official Release & Credits:**
+> This is an unofficial community port. The original library is created and maintained by **wisp-forest** (glisco and contributors).  
+> Official Release: [Modrinth](https://modrinth.com/mod/owo-lib) | Source: [GitHub (wisp-forest/owo-lib)](https://github.com/wisp-forest/owo-lib)
+
+---
+
 ## Overview
 
-A general utility, GUI and config library for modding on Fabric. oωo is generally aimed at reducing code verbosity and making development more ergonomic. It covers a wide range of features from networking and serialization over GUI applications and configuration to data handling and registration. 
+This repository is an unofficial port of **owo-lib** to **Minecraft 26.3** running natively on the **Fabric Loader** and **Fabric API** (Java 25).
+
+A general utility, GUI and config library for modding on Fabric. oωo is generally aimed at reducing code verbosity and making development more ergonomic. It covers a wide range of features from networking and serialization over GUI applications and configuration to data handling and registration.
+
+### System & Dependency Requirements
+- **Minecraft:** `26.3`
+- **Java:** `25`
+- **Fabric Loader:** `>= 0.16.0`
+- **Fabric API:** `0.161.0+26.3`
+ 
 
 **Build Setup:**
 ```properties

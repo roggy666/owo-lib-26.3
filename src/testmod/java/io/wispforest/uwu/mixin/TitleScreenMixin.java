@@ -8,7 +8,6 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.components.Button;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -23,8 +22,8 @@ public abstract class TitleScreenMixin extends Screen {
 
     @Inject(method = "lambda$init$4", at = @At("HEAD"), cancellable = true)
     private void injectUwuConfigScreen(Button button, CallbackInfo ci) {
-        var alt = InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_LEFT_ALT)
-            || InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), GLFW.GLFW_KEY_RIGHT_ALT);
+        var alt = InputConstants.isKeyDown(InputConstants.KEY_LALT)
+            || InputConstants.isKeyDown(InputConstants.KEY_RALT);
         if (!alt) return;
 
         Minecraft.getInstance().setScreenAndShow(ConfigScreen.create(Uwu.BRUHHHHH, this));

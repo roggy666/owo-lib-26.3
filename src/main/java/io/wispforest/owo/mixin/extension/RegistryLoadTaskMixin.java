@@ -9,27 +9,28 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.serialization.JsonOps;
 import io.wispforest.owo.Owo;
-import io.wispforest.owo.mixin.extension.recipe.RecipeManagerAccessor;
 import io.wispforest.owo.util.RecipeRemainderStorage;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.core.component.DataComponentPatch;
-import net.minecraft.resources.FileToIdConverter;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.ItemStackTemplate;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
 import java.io.Reader;
 import java.util.HashMap;
 
-@Mixin(SimpleJsonResourceReloadListener.class)
-public abstract class SimpleJsonResourceReloadListenerMixin {
+/**
+ * Since 26.3 recipes are a data-pack registry, so the {@code owo:remainders}
+ * recipe extension is read while the registry loader parses each recipe file
+ */
+@Mixin(targets = "net.minecraft.resources.RegistryLoadTask$PendingRegistration")
+public abstract class RegistryLoadTaskMixin {
 
     @WrapOperation(
-        method = "scanDirectory(Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/resources/FileToIdConverter;Lcom/mojang/serialization/DynamicOps;Lcom/mojang/serialization/Codec;Ljava/util/Map;)V",
+        method = "loadFromResource",
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/util/StrictJsonParser;parse(Ljava/io/Reader;)Lcom/google/gson/JsonElement;"
@@ -38,12 +39,11 @@ public abstract class SimpleJsonResourceReloadListenerMixin {
     private static JsonElement loadRecipeExtensions(
         Reader jsonReader,
         Operation<JsonElement> original,
-        @Local(argsOnly = true) FileToIdConverter finder,
-        @Local(ordinal = 1) Identifier recipeId
+        @Local(argsOnly = true) ResourceKey<?> elementKey
     ) {
         var element = original.call(jsonReader);
 
-        if (RecipeManagerAccessor.owo$getFinder() == finder && element instanceof JsonObject json) {
+        if (elementKey.isFor(Registries.RECIPE) && element instanceof JsonObject json) {
             if (json.has(Owo.id("remainders").toString())) {
                 var remainders = new HashMap<Item, ItemStackTemplate>();
 
@@ -62,7 +62,7 @@ public abstract class SimpleJsonResourceReloadListenerMixin {
                     }
                 }
 
-                if (!remainders.isEmpty()) RecipeRemainderStorage.store(recipeId, remainders);
+                if (!remainders.isEmpty()) RecipeRemainderStorage.store(elementKey.identifier(), remainders);
             }
         }
 

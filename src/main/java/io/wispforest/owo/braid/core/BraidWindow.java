@@ -1,16 +1,14 @@
 package io.wispforest.owo.braid.core;
 
-import com.google.common.base.Suppliers;
-import com.mojang.blaze3d.GpuFormat;
-import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.DisplayData;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.platform.WindowEventHandler;
-import com.mojang.blaze3d.systems.BackendCreationException;
-import com.mojang.blaze3d.systems.GpuSurface;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.systems.SurfaceException;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.device.GpuSurface;
+import com.mojang.renderpearl.api.device.SurfaceException;
 import io.wispforest.owo.Owo;
 import io.wispforest.owo.braid.core.cursor.CursorController;
 import io.wispforest.owo.braid.core.cursor.CursorStyle;
@@ -18,35 +16,47 @@ import io.wispforest.owo.braid.core.events.*;
 import io.wispforest.owo.braid.framework.widget.Widget;
 import io.wispforest.owo.braid.util.BraidGuiRenderer;
 import io.wispforest.owo.mixin.braid.MinecraftAccessor;
+import io.wispforest.owo.mixin.ui.access.RenderSystemAccessor;
 import io.wispforest.owo.util.EventSource;
 import io.wispforest.owo.util.EventStream;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.Util;
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Vector4f;
-import org.lwjgl.glfw.*;
-import org.lwjgl.opengl.GL32;
-import org.lwjgl.system.NativeResource;
+import org.lwjgl.sdl.SDLEvents;
+import org.lwjgl.sdl.SDLKeyboard;
+import org.lwjgl.sdl.SDLVideo;
+import org.lwjgl.sdl.SDL_Event;
+import org.lwjgl.system.MemoryUtil;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
-import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
 
 // TODO: consider somehow getting notified or polling
 //       for changes in the gui scale option so we can react
 //       instantly when it changes rather than on next resize
 public class BraidWindow implements Surface {
 
+    /**
+     * All currently open windows by their SDL window handle. Read from the
+     * event polling thread, see {@link io.wispforest.owo.mixin.braid.SDLEventHandlerMixin}
+     */
+    private static final Map<Long, BraidWindow> OPEN_WINDOWS = new ConcurrentHashMap<>();
+
     public final EventBinding eventBinding = new WindowEventBinding(this);
 
     public final Window backendWindow;
-    private final Swapchain swapchain;
+    private final GpuSurface surface;
+    private boolean surfaceValid = false;
+    private volatile boolean iconified = false;
 
-    private final List<NativeResource> resources = new ArrayList<>();
+    private final List<Path> droppedFiles = new ArrayList<>();
 
     private final EventStream<ResizeCallback> onResize = ResizeCallback.newStream();
     private TextureTarget remoteTarget;
@@ -58,109 +68,59 @@ public class BraidWindow implements Surface {
     private int scaleFactor;
 
     public BraidWindow(String title, int width, int height) {
-        try {
-            if (!IS_VULKAN.get()) {
-                SHARE_NEXT_WINDOW_INSTANCE.set(true);
-            }
+        this.backendWindow = new Window(
+            new WindowEventHandler() {
+                @Override
+                public void framebufferSizeChanged() {
+                    if (remoteTarget == null) return;
 
-            this.backendWindow = new Window(
-                new WindowEventHandler() {
-                    @Override
-                    public void framebufferSizeChanged() {
-                        withContext(Minecraft.getInstance().getWindow().handle(), () -> {
-                            remoteTarget.destroyBuffers();
-                            remoteTarget = new TextureTarget("braid window", backendWindow.getWidth(), backendWindow.getHeight(), true, GpuFormat.RGBA8_UNORM);
-                        });
+                    remoteTarget.destroyBuffers();
+                    remoteTarget = new TextureTarget("braid window", backendWindow.getWidth(), backendWindow.getHeight(), GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT);
 
-                        onResize.sink().onResize(backendWindow.getGuiScaledWidth(), backendWindow.getGuiScaledHeight());
+                    resizeSwapchain();
+                    onResize.sink().onResize(backendWindow.getGuiScaledWidth(), backendWindow.getGuiScaledHeight());
+                }
 
-                        resizeSwapchain();
-                    }
+                @Override
+                public void resizeGui() {}
 
-                    @Override
-                    public void resizeGui() {}
+                @Override
+                public void cursorEntered() {}
 
-                    @Override
-                    public void cursorEntered() {}
-                },
-                new DisplayData(width, height, OptionalInt.empty(), OptionalInt.empty(), false),
-                null,
-                false,
-                title,
-                ((MinecraftAccessor) Minecraft.getInstance()).owo$getMonitorManager(),
-                Minecraft.getInstance().getWindow().backend());
-        } catch (BackendCreationException e) {
-            throw new UnsupportedOperationException("Failed to create backend window", e);
-        }
+                @Override
+                public void fullscreenStateChanged(boolean fullscreen) {}
+            },
+            new DisplayData(width, height, OptionalInt.empty(), OptionalInt.empty(), false),
+            null,
+            false,
+            title,
+            ((MinecraftAccessor) Minecraft.getInstance()).owo$getMonitorManager(),
+            RenderSystemAccessor.owo$getBackend()
+        );
 
-        GLFW.glfwShowWindow(this.backendWindow.handle());
+        // the window shares the game's graphics device, the surface takes care
+        // of context switching (OpenGL) or a separate swapchain (Vulkan)
+        this.surface = RenderSystem.getDevice().createSurface(this.backendWindow.handle(), () -> this.iconified);
 
-        this.swapchain = IS_VULKAN.get()
-            ? new VulkanSwapchain()
-            : new GlSwapchain();
+        // SDL only delivers text input events to windows which asked for them
+        SDLKeyboard.SDL_StartTextInput(this.backendWindow.handle());
 
         this.cursorController = new CursorController(this.backendWindow.handle());
         this.guiRenderer = new BraidGuiRenderer(Minecraft.getInstance());
 
-        this.remoteTarget = new TextureTarget("braid window", this.backendWindow.getWidth(), this.backendWindow.getHeight(), true, GpuFormat.RGBA8_UNORM);
+        this.remoteTarget = new TextureTarget("braid window", this.backendWindow.getWidth(), this.backendWindow.getHeight(), GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT);
         this.resizeSwapchain();
 
-        GLFW.glfwSetWindowCloseCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWWindowCloseCallback.create(_ -> {
-            this.eventBinding.add(CloseEvent.INSTANCE);
-        })));
+        OPEN_WINDOWS.put(this.backendWindow.handle(), this);
+    }
 
-        GLFW.glfwSetMouseButtonCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWMouseButtonCallback.create((_, button, action, mods) -> {
-            this.eventBinding.add(switch (action) {
-                case GLFW.GLFW_PRESS -> new MouseButtonPressEvent(button, new KeyModifiers(mods));
-                case GLFW.GLFW_RELEASE -> new MouseButtonReleaseEvent(button, new KeyModifiers(mods));
-                default -> throw new UnsupportedOperationException("incompatible glfw event type");
-            });
-        })));
-
-        GLFW.glfwSetCursorPosCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWCursorPosCallback.create((_, mouseX, mouseY) -> {
-            this.eventBinding.add(new MouseMoveEvent(
-                mouseX / this.scaleFactor,
-                mouseY / this.scaleFactor
-            ));
-        })));
-
-        GLFW.glfwSetScrollCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWScrollCallback.create((_, xOffset, yOffset) -> {
-            this.eventBinding.add(new MouseScrollEvent(xOffset, yOffset));
-        })));
-
-        GLFW.glfwSetKeyCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWKeyCallback.create((_, key, scancode, action, mods) -> {
-            this.eventBinding.add(switch (action) {
-                case GLFW.GLFW_PRESS, GLFW.GLFW_REPEAT -> new KeyPressEvent(key, scancode, new KeyModifiers(mods));
-                case GLFW.GLFW_RELEASE -> new KeyReleaseEvent(key, scancode, new KeyModifiers(mods));
-                default -> throw new UnsupportedOperationException("incompatible glfw event type");
-            });
-        })));
-
-        GLFW.glfwSetCharModsCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWCharModsCallback.create((_, codepoint, mods) -> {
-            this.eventBinding.add(new CharInputEvent((char) codepoint, new KeyModifiers(mods)));
-        })));
-
-        GLFW.glfwSetDropCallback(this.backendWindow.handle(), this.storeNativeResource(GLFWDropCallback.create((_, count, names) -> {
-            var paths = new ArrayList<Path>(count);
-
-            for (int pathIdx = 0; pathIdx < count; pathIdx++) {
-                var pathString = GLFWDropCallback.getName(names, pathIdx);
-
-                try {
-                    paths.add(Paths.get(pathString));
-                } catch (InvalidPathException e) {
-                    Owo.LOGGER.error("Failed to parse path '{}'", pathString, e);
-                }
-            }
-
-            if (!paths.isEmpty()) {
-                this.eventBinding.add(new FilesDroppedEvent(paths));
-            }
-        })));
+    @ApiStatus.Internal
+    public static @Nullable BraidWindow byHandle(long windowHandle) {
+        return OPEN_WINDOWS.get(windowHandle);
     }
 
     private void resizeSwapchain() {
-        this.swapchain.resize();
+        this.surfaceValid = false;
         this.recalculateScale();
     }
 
@@ -187,21 +147,150 @@ public class BraidWindow implements Surface {
         return new OpenResult(app, window);
     }
 
+    // --- window management
+
+    public void show() {
+        SDLVideo.SDL_ShowWindow(this.backendWindow.handle());
+        SDLVideo.SDL_RaiseWindow(this.backendWindow.handle());
+    }
+
+    public void minimize() {
+        SDLVideo.SDL_MinimizeWindow(this.backendWindow.handle());
+    }
+
+    public void setAlwaysOnTop(boolean alwaysOnTop) {
+        SDLVideo.SDL_SetWindowAlwaysOnTop(this.backendWindow.handle(), alwaysOnTop);
+    }
+
+    // --- events
+
+    /**
+     * Translate an SDL event addressed to this window into a task for the client thread.
+     * Called on the event polling thread, so only the event struct may be read here
+     * and it must not be referenced by the returned task
+     */
+    @ApiStatus.Internal
+    public @Nullable Runnable translateEvent(SDL_Event event) {
+        switch (event.type()) {
+            case SDLEvents.SDL_EVENT_KEY_DOWN, SDLEvents.SDL_EVENT_KEY_UP -> {
+                var key = event.key();
+                int scancode = key.scancode(), keycode = key.key(), modifiers = key.mod() & 0xFFFF;
+                boolean pressed = event.type() == SDLEvents.SDL_EVENT_KEY_DOWN;
+
+                return () -> this.eventBinding.add(pressed
+                    ? new KeyPressEvent(scancode, keycode, new KeyModifiers(modifiers))
+                    : new KeyReleaseEvent(scancode, keycode, new KeyModifiers(modifiers))
+                );
+            }
+            case SDLEvents.SDL_EVENT_TEXT_INPUT -> {
+                var text = event.text().textString();
+                if (text == null) return null;
+
+                int modifiers = SDLKeyboard.SDL_GetModState() & 0xFFFF;
+                return () -> text.codePoints().forEach(codepoint -> {
+                    this.eventBinding.add(new CharInputEvent((char) codepoint, new KeyModifiers(modifiers)));
+                });
+            }
+            case SDLEvents.SDL_EVENT_MOUSE_MOTION -> {
+                var motion = event.motion();
+                float mouseX = motion.x(), mouseY = motion.y();
+
+                return () -> this.eventBinding.add(new MouseMoveEvent(this.toGuiX(mouseX), this.toGuiY(mouseY)));
+            }
+            case SDLEvents.SDL_EVENT_MOUSE_BUTTON_DOWN, SDLEvents.SDL_EVENT_MOUSE_BUTTON_UP -> {
+                int button = event.button().button();
+                int modifiers = SDLKeyboard.SDL_GetModState() & 0xFFFF;
+                boolean pressed = event.type() == SDLEvents.SDL_EVENT_MOUSE_BUTTON_DOWN;
+
+                return () -> this.eventBinding.add(pressed
+                    ? new MouseButtonPressEvent(button, new KeyModifiers(modifiers))
+                    : new MouseButtonReleaseEvent(button, new KeyModifiers(modifiers))
+                );
+            }
+            case SDLEvents.SDL_EVENT_MOUSE_WHEEL -> {
+                var wheel = event.wheel();
+                float xOffset = wheel.x(), yOffset = wheel.y();
+
+                return () -> this.eventBinding.add(new MouseScrollEvent(xOffset, yOffset));
+            }
+            case SDLEvents.SDL_EVENT_DROP_BEGIN -> {
+                return this.droppedFiles::clear;
+            }
+            case SDLEvents.SDL_EVENT_DROP_FILE -> {
+                var pathString = event.drop().dataString();
+                if (pathString == null) return null;
+
+                return () -> {
+                    try {
+                        this.droppedFiles.add(Paths.get(pathString));
+                    } catch (InvalidPathException e) {
+                        Owo.LOGGER.error("Failed to parse path '{}'", pathString, e);
+                    }
+                };
+            }
+            case SDLEvents.SDL_EVENT_DROP_COMPLETE -> {
+                return () -> {
+                    if (this.droppedFiles.isEmpty()) return;
+
+                    this.eventBinding.add(new FilesDroppedEvent(new ArrayList<>(this.droppedFiles)));
+                    this.droppedFiles.clear();
+                };
+            }
+            case SDLEvents.SDL_EVENT_WINDOW_CLOSE_REQUESTED -> {
+                return () -> this.eventBinding.add(CloseEvent.INSTANCE);
+            }
+            case SDLEvents.SDL_EVENT_WINDOW_MINIMIZED -> {
+                this.iconified = true;
+                return null;
+            }
+            case SDLEvents.SDL_EVENT_WINDOW_RESTORED, SDLEvents.SDL_EVENT_WINDOW_MAXIMIZED -> {
+                this.iconified = false;
+                return null;
+            }
+            default -> {
+                // the remaining window events (move, resize, focus, display changes) are
+                // interpreted by the vanilla window class. the event struct is reused by
+                // the poller once we return, so hand a copy to the client thread
+                var copy = SDL_Event.malloc();
+                MemoryUtil.memCopy(event.address(), copy.address(), SDL_Event.SIZEOF);
+
+                return () -> {
+                    try {
+                        this.backendWindow.handleEvent(copy);
+                    } finally {
+                        copy.free();
+                    }
+                };
+            }
+        }
+    }
+
+    private double toGuiX(double windowX) {
+        return windowX * this.backendWindow.getGuiScaledWidth() / this.backendWindow.getScreenWidth();
+    }
+
+    private double toGuiY(double windowY) {
+        return windowY * this.backendWindow.getGuiScaledHeight() / this.backendWindow.getScreenHeight();
+    }
+
     // ---
 
     @Override
     public void dispose() {
+        OPEN_WINDOWS.remove(this.backendWindow.handle());
+
+        if (this.surface.isAcquired()) {
+            this.surface.present();
+        }
+        this.surface.close();
+
+        SDLKeyboard.SDL_StopTextInput(this.backendWindow.handle());
         this.backendWindow.close();
-        this.swapchain.dispose();
         this.cursorController.dispose();
 
         this.guiRenderer.close();
 
         this.remoteTarget.destroyBuffers();
-
-        for (var resource : this.resources) {
-//            resource.free();
-        }
     }
 
     // ---
@@ -240,14 +329,41 @@ public class BraidWindow implements Surface {
 
     @Override
     public void beginRendering() {
-        this.swapchain.prepareFrame();
+        this.prepareSurface();
 
         RenderSystem.getDevice().createCommandEncoder().clearColorAndDepthTextures(
             this.remoteTarget.getColorTexture(),
             new Vector4f(0, 0, 0, 1),
             this.remoteTarget.getDepthTexture(),
-            1
+            RenderSystem.DEFAULT_DEPTH_CLEAR_VALUE
         );
+    }
+
+    private void prepareSurface() {
+        if (this.iconified) return;
+
+        if (!this.surfaceValid) {
+            try {
+                this.surface.configure(new GpuSurface.Configuration(
+                    this.backendWindow.getWidth(),
+                    this.backendWindow.getHeight(),
+                    GpuSurface.PresentMode.getSupportedVsyncMode(this.surface.supportedPresentModes(), false)
+                ));
+                this.surfaceValid = true;
+            } catch (SurfaceException e) {
+                Owo.LOGGER.warn("Failed to configure braid window surface", e);
+                return;
+            }
+        }
+
+        if (this.surface.isAcquired()) return;
+
+        try {
+            this.surface.acquireNextTexture();
+        } catch (SurfaceException e) {
+            Owo.LOGGER.warn("Failed to acquire braid window surface texture", e);
+            this.surfaceValid = false;
+        }
     }
 
     @Override
@@ -259,40 +375,14 @@ public class BraidWindow implements Surface {
 
         // ---
 
-        this.swapchain.present();
+        if (!this.surface.isAcquired()) return;
+
+        var encoder = RenderSystem.getDevice().createCommandEncoder();
+        this.surface.blitFromTexture(encoder, this.remoteTarget.getColorTextureView());
+        encoder.submit();
+
+        this.surface.present();
     }
-
-    // ---
-
-    private <R extends NativeResource> R storeNativeResource(R resource) {
-        this.resources.add(resource);
-        return resource;
-    }
-
-    private static void withContext(long contextHandle, Runnable fn) {
-        if (IS_VULKAN.get()) {
-            fn.run();
-            return;
-        }
-
-        var activeContext = GLFW.glfwGetCurrentContext();
-
-        try {
-            GLFW.glfwMakeContextCurrent(contextHandle);
-            fn.run();
-        } finally {
-            GLFW.glfwMakeContextCurrent(activeContext);
-        }
-    }
-
-    private static final Supplier<Boolean> IS_VULKAN = Suppliers.memoize(() -> !RenderSystem.getDevice().getDeviceInfo().backendName().equals("OpenGL"));
-
-    @ApiStatus.Internal
-    public static ThreadLocal<Boolean> SHARE_NEXT_WINDOW_INSTANCE = Util.make(() -> {
-        var tl = new ThreadLocal<Boolean>();
-        tl.set(false);
-        return tl;
-    });
 
     // ---
 
@@ -306,121 +396,9 @@ public class BraidWindow implements Surface {
 
         @Override
         public boolean isKeyPressed(int keyCode) {
-            return GLFW.glfwGetKey(this.window.backendWindow.handle(), keyCode) == GLFW.GLFW_PRESS;
+            return InputConstants.isKeyDown(keyCode);
         }
     }
 
     public record OpenResult(AppState state, BraidWindow window) {}
-
-    private sealed interface Swapchain permits GlSwapchain, VulkanSwapchain {
-        void prepareFrame();
-        void present();
-
-        void resize();
-        void dispose();
-    }
-
-    private final class GlSwapchain implements Swapchain {
-
-        private int localFbo;
-
-        @Override
-        public void prepareFrame() {}
-
-        @Override
-        public void present() {
-            withContext(backendWindow.handle(), () -> {
-                GL32.glBindFramebuffer(GL32.GL_READ_FRAMEBUFFER, this.localFbo);
-                GL32.glBindFramebuffer(GL32.GL_DRAW_FRAMEBUFFER, 0);
-
-                GL32.glBlitFramebuffer(
-                    0, 0, backendWindow.getWidth(), backendWindow.getHeight(),
-                    0, 0, backendWindow.getWidth(), backendWindow.getHeight(),
-                    GL32.GL_COLOR_BUFFER_BIT,
-                    GL32.GL_NEAREST
-                );
-
-                GLFW.glfwSwapBuffers(backendWindow.handle());
-            });
-        }
-
-        @Override
-        public void resize() {
-            withContext(backendWindow.handle(), () -> {
-                if (this.localFbo != 0) {
-                    GL32.glDeleteFramebuffers(this.localFbo);
-                }
-
-                this.localFbo = GL32.glGenFramebuffers();
-                GL32.glBindFramebuffer(GL32.GL_FRAMEBUFFER, this.localFbo);
-                GL32.glFramebufferTexture2D(GL32.GL_FRAMEBUFFER, GL32.GL_COLOR_ATTACHMENT0, GL32.GL_TEXTURE_2D, ((GlTexture) remoteTarget.getColorTexture()).glId(), 0);
-
-                if (GL32.glCheckFramebufferStatus(GL32.GL_FRAMEBUFFER) != GL32.GL_FRAMEBUFFER_COMPLETE) {
-                    throw new UnsupportedOperationException("Failed to initialize local FBO");
-                }
-            });
-        }
-
-        @Override
-        public void dispose() {
-            GL32.glDeleteFramebuffers(this.localFbo);
-        }
-    }
-
-    private final class VulkanSwapchain implements Swapchain {
-
-        private final GpuSurface backendWindowSurface = RenderSystem.getDevice().createSurface(backendWindow.handle());
-        private boolean surfaceValid = false;
-
-        @Override
-        public void prepareFrame() {
-            if (!this.surfaceValid) {
-                try {
-                    this.backendWindowSurface.configure(new GpuSurface.Configuration(
-                        backendWindow.getWidth(),
-                        backendWindow.getHeight(),
-                        GpuSurface.PresentMode.getSupportedVsyncMode(this.backendWindowSurface.supportedPresentModes(), false)
-                    ));
-                    this.surfaceValid = true;
-                } catch (SurfaceException e) {
-                    Owo.LOGGER.warn("Failed to resize braid window");
-                }
-            }
-
-            if (!this.surfaceValid) {
-                return;
-            }
-
-            try {
-                this.backendWindowSurface.acquireNextTexture();
-            } catch (SurfaceException e) {
-                Owo.LOGGER.warn("Failed to acquire texture");
-            }
-        }
-
-        @Override
-        public void present() {
-            if (!this.backendWindowSurface.isAcquired()) {
-                return;
-            }
-
-            this.backendWindowSurface.blitFromTexture(
-                RenderSystem.getDevice().createCommandEncoder(),
-                remoteTarget.getColorTextureView()
-            );
-
-            RenderSystem.getDevice().createCommandEncoder().submit();
-            this.backendWindowSurface.present();
-        }
-
-        @Override
-        public void resize() {
-            this.surfaceValid = false;
-        }
-
-        @Override
-        public void dispose() {
-            this.backendWindowSurface.close();
-        }
-    }
 }

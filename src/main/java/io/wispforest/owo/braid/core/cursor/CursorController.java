@@ -1,20 +1,25 @@
 package io.wispforest.owo.braid.core.cursor;
 
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
-import java.util.HashMap;
-import java.util.Map;
-
+/**
+ * Applies {@link CursorStyle}s to a window. Cursor shapes are shared with the
+ * game, so this controller never owns any native resources
+ */
 public class CursorController {
 
-    private final Map<CursorStyle, Long> cursors = new HashMap<>();
     private final long windowHandle;
+    private final boolean clientWindow;
 
     private CursorStyle lastCursorStyle = CursorStyle.NONE;
     private boolean disposed = false;
 
     public CursorController(long windowHandle) {
         this.windowHandle = windowHandle;
+
+        var clientWindow = Minecraft.getInstance().getWindow();
+        this.clientWindow = clientWindow == null || clientWindow.handle() == windowHandle;
     }
 
     public CursorStyle currentStyle() {
@@ -23,28 +28,28 @@ public class CursorController {
 
     public void setStyle(CursorStyle style) {
         if (this.disposed || this.lastCursorStyle == style) return;
-
-        if (style == CursorStyle.NONE) {
-            GLFW.glfwSetCursor(this.windowHandle, 0);
-        } else {
-            if (!this.cursors.containsKey(style)) {
-                this.cursors.put(style, style.allocate());
-            }
-
-            GLFW.glfwSetCursor(this.windowHandle, this.cursors.get(style));
-        }
-
         this.lastCursorStyle = style;
+
+        if (this.clientWindow) {
+            Minecraft.getInstance().getWindow().selectCursor(style.cursorType());
+        } else {
+            // SDL cursors are process-wide, a secondary window selects its cursor directly
+            style.cursorType().select();
+        }
+    }
+
+    /**
+     * Requests the current style for the frame being extracted into {@code graphics}.
+     * The game's window falls back to the default cursor in every frame in which
+     * nothing requests a cursor, so this must be called once per frame while a
+     * non-default style should stay active
+     */
+    public void applyTo(GuiGraphicsExtractor graphics) {
+        if (this.disposed || this.lastCursorStyle == CursorStyle.NONE) return;
+        graphics.requestCursor(this.lastCursorStyle.cursorType());
     }
 
     public void dispose() {
-        if (this.disposed) return;
-
-        for (var ptr : this.cursors.values()) {
-            if (ptr == 0) return;
-            GLFW.glfwDestroyCursor(ptr);
-        }
-
         this.disposed = true;
     }
 }

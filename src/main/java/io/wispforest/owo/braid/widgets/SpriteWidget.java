@@ -1,5 +1,6 @@
 package io.wispforest.owo.braid.widgets;
 
+import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import io.wispforest.owo.braid.core.BraidGraphics;
 import io.wispforest.owo.braid.core.Constraints;
 import io.wispforest.owo.braid.core.Size;
@@ -54,7 +55,7 @@ public class SpriteWidget extends LeafInstanceWidget {
             try {
                 this.sprite = Minecraft.getInstance().getAtlasManager().get(this.widget.spriteIdentifier);
             } catch (IllegalArgumentException ignored) {
-                this.sprite = Minecraft.getInstance().getAtlasManager().get(new SpriteId(GUI_ATLAS_ID, TextureManager.INTENTIONAL_MISSING_TEXTURE));
+                this.sprite = Minecraft.getInstance().getAtlasManager().get(new SpriteId(GUI_ATLAS_ID, MissingTextureAtlasSprite.getLocation()));
             }
 
             return this.sprite;

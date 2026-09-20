@@ -1,5 +1,6 @@
 package io.wispforest.owo.mixin.extension.recipe;
 
+import net.minecraft.util.Prediction;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -47,7 +48,7 @@ public abstract class ResultSlotMixin {
             int excess = remainderStack.getCount() - remainderStack.getMaxStackSize();
             remainderStack.shrink(excess);
 
-            this.player.getInventory().placeItemBackInInventory(remainderStack.copyWithCount(excess));
+            this.player.getInventory().placeItemBackInInventory(remainderStack.copyWithCount(excess), Prediction.PREDICTED);
         }
     }
 

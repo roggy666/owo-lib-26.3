@@ -1,24 +1,28 @@
 package io.wispforest.owo.braid.core.cursor;
 
+import com.mojang.blaze3d.platform.cursor.CursorType;
 import io.wispforest.owo.braid.core.LayoutAxis;
+import io.wispforest.owo.ui.util.SystemCursors;
 import net.minecraft.util.Mth;
 import org.joml.Matrix3x2f;
-import org.lwjgl.glfw.GLFW;
 
 public sealed interface CursorStyle permits SystemCursorStyle {
-    CursorStyle NONE = new SystemCursorStyle(0);
-    CursorStyle POINTER = new SystemCursorStyle(GLFW.GLFW_ARROW_CURSOR);
-    CursorStyle TEXT = new SystemCursorStyle(GLFW.GLFW_IBEAM_CURSOR);
-    CursorStyle HAND = new SystemCursorStyle(GLFW.GLFW_HAND_CURSOR);
-    CursorStyle MOVE = new SystemCursorStyle(GLFW.GLFW_RESIZE_ALL_CURSOR);
-    CursorStyle CROSSHAIR = new SystemCursorStyle(GLFW.GLFW_CROSSHAIR_CURSOR);
-    CursorStyle HORIZONTAL_RESIZE = new SystemCursorStyle(GLFW.GLFW_HRESIZE_CURSOR);
-    CursorStyle VERTICAL_RESIZE = new SystemCursorStyle(GLFW.GLFW_VRESIZE_CURSOR);
-    CursorStyle NWSE_RESIZE = new SystemCursorStyle(GLFW.GLFW_RESIZE_NWSE_CURSOR);
-    CursorStyle NESW_RESIZE = new SystemCursorStyle(GLFW.GLFW_RESIZE_NESW_CURSOR);
-    CursorStyle NOT_ALLOWED = new SystemCursorStyle(GLFW.GLFW_NOT_ALLOWED_CURSOR);
+    CursorStyle NONE = new SystemCursorStyle(SystemCursors.NONE, "default");
+    CursorStyle POINTER = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_DEFAULT, "arrow");
+    CursorStyle TEXT = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_TEXT, "ibeam");
+    CursorStyle HAND = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_POINTER, "pointing_hand");
+    CursorStyle MOVE = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_MOVE, "resize_all");
+    CursorStyle CROSSHAIR = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_CROSSHAIR, "crosshair");
+    CursorStyle HORIZONTAL_RESIZE = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_EW_RESIZE, "resize_ew");
+    CursorStyle VERTICAL_RESIZE = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_NS_RESIZE, "resize_ns");
+    CursorStyle NWSE_RESIZE = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_NWSE_RESIZE, "resize_nwse");
+    CursorStyle NESW_RESIZE = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_NESW_RESIZE, "resize_nesw");
+    CursorStyle NOT_ALLOWED = new SystemCursorStyle(SystemCursors.SDL_SYSTEM_CURSOR_NOT_ALLOWED, "not_allowed");
 
-    long allocate();
+    /**
+     * @return The cursor type the game's window uses to select this style
+     */
+    CursorType cursorType();
 
     static CursorStyle forDraggingAlong(LayoutAxis axis, Matrix3x2f transform3x2) {
         // Extract the Z rotation from the transform

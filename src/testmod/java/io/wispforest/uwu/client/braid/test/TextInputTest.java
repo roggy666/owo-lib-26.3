@@ -1,5 +1,6 @@
 package io.wispforest.uwu.client.braid.test;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.authlib.GameProfile;
 import io.wispforest.owo.braid.core.Color;
 import io.wispforest.owo.braid.core.Insets;
@@ -34,7 +35,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.UUID;
@@ -94,7 +94,7 @@ public class TextInputTest extends StatefulWidget {
                                 widget -> widget
                                     .skipTraversal(true)
                                     .keyDownCallback((keyCode, modifiers) -> {
-                                        if (keyCode != GLFW.GLFW_KEY_ENTER || !modifiers.equals(KeyModifiers.NONE)) {
+                                        if (keyCode != InputConstants.KEY_RETURN || !modifiers.equals(KeyModifiers.NONE)) {
                                             return false;
                                         }
 

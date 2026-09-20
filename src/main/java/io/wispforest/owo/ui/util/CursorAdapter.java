@@ -3,28 +3,26 @@ package io.wispforest.owo.ui.util;
 import com.mojang.blaze3d.platform.Window;
 import io.wispforest.owo.ui.core.CursorStyle;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
-import java.util.EnumMap;
-
+/**
+ * Applies {@link CursorStyle}s to a window. Cursor shapes are shared
+ * with the game (see {@link SystemCursors}), so this adapter never
+ * owns any native resources
+ */
 public class CursorAdapter {
 
-    protected static final CursorStyle[] ACTIVE_STYLES = {CursorStyle.POINTER, CursorStyle.TEXT, CursorStyle.HAND, CursorStyle.CROSSHAIR, CursorStyle.MOVE, CursorStyle.HORIZONTAL_RESIZE, CursorStyle.VERTICAL_RESIZE, CursorStyle.NWSE_RESIZE, CursorStyle.NESW_RESIZE, CursorStyle.NOT_ALLOWED};
-
-    protected final EnumMap<CursorStyle, Long> cursors = new EnumMap<>(CursorStyle.class);
     protected final long windowHandle;
+    protected final boolean clientWindow;
 
     protected CursorStyle lastCursorStyle = CursorStyle.POINTER;
     protected boolean disposed = false;
 
     protected CursorAdapter(long windowHandle) {
         this.windowHandle = windowHandle;
-        for (var style : ACTIVE_STYLES) {
-            var pointer = GLFW.glfwCreateStandardCursor(style.glfw);
-            if (pointer == 0) continue;
 
-            this.cursors.put(style, pointer);
-        }
+        var clientWindow = Minecraft.getInstance().getWindow();
+        this.clientWindow = clientWindow == null || clientWindow.handle() == windowHandle;
     }
 
     public static CursorAdapter ofClientWindow() {
@@ -39,21 +37,34 @@ public class CursorAdapter {
         return new CursorAdapter(windowHandle);
     }
 
+    public CursorStyle currentStyle() {
+        return this.lastCursorStyle;
+    }
+
     public void applyStyle(CursorStyle style) {
         if (this.disposed || this.lastCursorStyle == style) return;
-
-        if (style == CursorStyle.NONE) {
-            GLFW.glfwSetCursor(this.windowHandle, 0);
-        } else {
-            GLFW.glfwSetCursor(this.windowHandle, this.cursors.getOrDefault(style, 0L));
-        }
         this.lastCursorStyle = style;
+
+        if (this.clientWindow) {
+            Minecraft.getInstance().getWindow().selectCursor(style.cursorType());
+        } else {
+            // SDL cursors are process-wide, a secondary window selects its cursor directly
+            style.cursorType().select();
+        }
+    }
+
+    /**
+     * Requests the current style for the frame being extracted into {@code graphics}.
+     * The game's window falls back to the default cursor in every frame in which
+     * nothing requests a cursor, so this must be called once per frame while a
+     * non-default style should stay active
+     */
+    public void applyTo(GuiGraphicsExtractor graphics) {
+        if (this.disposed || this.lastCursorStyle == CursorStyle.NONE) return;
+        graphics.requestCursor(this.lastCursorStyle.cursorType());
     }
 
     public void dispose() {
-        if (this.disposed) return;
-
-        this.cursors.values().forEach(GLFW::glfwDestroyCursor);
         this.disposed = true;
     }
 

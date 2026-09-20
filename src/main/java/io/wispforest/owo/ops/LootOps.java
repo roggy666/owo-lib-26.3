@@ -1,6 +1,7 @@
 package io.wispforest.owo.ops;
 
-import io.wispforest.owo.mixin.SetComponentsFunctionAccessor;
+import net.minecraft.world.level.storage.loot.functions.SetComponentsFunction;
+import java.util.Optional;
 import net.fabricmc.fabric.api.loot.v3.LootTableEvents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
@@ -10,8 +11,7 @@ import net.minecraft.world.level.storage.loot.entries.LootItem;
 import net.minecraft.world.level.storage.loot.entries.LootPoolEntryContainer;
 import net.minecraft.world.level.storage.loot.functions.SetItemCountFunction;
 import net.minecraft.world.level.storage.loot.predicates.LootItemRandomChanceCondition;
-import net.minecraft.world.level.storage.loot.providers.number.ConstantValue;
-import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
+import net.minecraft.world.level.storage.loot.providers.number.ints.ContextIntProviders;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.HashMap;
@@ -53,7 +53,7 @@ public final class LootOps {
     public static void injectItemWithCount(ItemLike item, float chance, int min, int max, Identifier... targetTables) {
         ADDITIONS.put(targetTables, () -> LootItem.lootTableItem(item)
                 .when(LootItemRandomChanceCondition.randomChance(chance))
-                .apply(SetItemCountFunction.setCount(UniformGenerator.between(min, max)))
+                .apply(SetItemCountFunction.setCount(ContextIntProviders.between(min, max)))
                 .build());
     }
 
@@ -67,8 +67,8 @@ public final class LootOps {
     public static void injectItemStack(ItemStack stack, float chance, Identifier... targetTables) {
         ADDITIONS.put(targetTables, () -> LootItem.lootTableItem(stack.getItem())
                 .when(LootItemRandomChanceCondition.randomChance(chance))
-                .apply(() -> SetComponentsFunctionAccessor.createSetComponentsLootFunction(List.of(), stack.getComponentsPatch()))
-                .apply(SetItemCountFunction.setCount(ConstantValue.exactly(stack.getCount())))
+                .apply(() -> new SetComponentsFunction(Optional.empty(), stack.getComponentsPatch()))
+                .apply(SetItemCountFunction.setCount(ContextIntProviders.exactly(stack.getCount())))
                 .build());
     }
 

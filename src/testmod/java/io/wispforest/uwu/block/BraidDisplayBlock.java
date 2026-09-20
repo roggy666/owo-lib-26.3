@@ -1,5 +1,7 @@
 package io.wispforest.uwu.block;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.sdl.SDLKeyboard;
 import com.mojang.serialization.MapCodec;
 import io.wispforest.owo.braid.core.KeyModifiers;
 import io.wispforest.owo.braid.core.events.KeyPressEvent;
@@ -16,7 +18,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 public class BraidDisplayBlock extends BaseEntityBlock {
 
@@ -32,7 +33,7 @@ public class BraidDisplayBlock extends BaseEntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         var entity = level.getBlockEntity(pos);
         if (player.isShiftKeyDown() && entity instanceof BraidDisplayBlockEntity display && display.display != null) {
-            display.display.app.eventBinding.add(new KeyPressEvent(GLFW.GLFW_KEY_I, GLFW.glfwGetKeyScancode(GLFW.GLFW_KEY_I), new KeyModifiers(GLFW.GLFW_MOD_SHIFT | GLFW.GLFW_MOD_CONTROL)));
+            display.display.app.eventBinding.add(new KeyPressEvent(InputConstants.KEY_I, SDLKeyboard.SDL_GetKeyFromScancode(InputConstants.KEY_I, (short) 0, false), new KeyModifiers(InputConstants.MOD_SHIFT | InputConstants.MOD_CONTROL)));
 
             return InteractionResult.SUCCESS;
         }
@@ -50,8 +51,4 @@ public class BraidDisplayBlock extends BaseEntityBlock {
         return new BraidDisplayBlockEntity(pos, state);
     }
 
-    @Override
-    protected MapCodec<? extends BaseEntityBlock> codec() {
-        return null;
-    }
 }

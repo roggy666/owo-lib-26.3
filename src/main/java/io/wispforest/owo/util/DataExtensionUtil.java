@@ -5,6 +5,7 @@ import blue.endless.jankson.JsonGrammar;
 import blue.endless.jankson.api.SyntaxError;
 import com.google.common.collect.MapMaker;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.ResourceManager;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.io.ByteArrayInputStream;
@@ -43,9 +44,14 @@ public class DataExtensionUtil {
         }
     }
 
-    public interface OptInIdentifierPredicate extends Predicate<Identifier> {
-        static OptInIdentifierPredicate of(Predicate<Identifier> delegate) {
-            return delegate instanceof OptInIdentifierPredicate optIn ? optIn : delegate::test;
+    /**
+     * A resource selector which explicitly opts into seeing JSON5 files,
+     * used by the resource listing mixins to only surface {@code .json5}
+     * resources to callers that asked for them
+     */
+    public interface OptInSelector extends ResourceManager.Selector {
+        static OptInSelector of(Predicate<Identifier> delegate) {
+            return delegate::test;
         }
     }
 }

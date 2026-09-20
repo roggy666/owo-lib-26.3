@@ -8,7 +8,6 @@ import io.wispforest.owo.braid.widgets.eventstream.BraidEventSource;
 import io.wispforest.owo.braid.widgets.eventstream.BraidEventStream;
 import net.minecraft.util.Unit;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,7 +36,7 @@ public class BraidInspector {
 
     public void pick(PickEvent event) {
         this.pickEvents.sink().onEvent(event);
-        if (currentWindow != null && event == PickEvent.START) GLFW.glfwIconifyWindow(currentWindow.backendWindow.handle());
+        if (currentWindow != null && event == PickEvent.START) currentWindow.minimize();
     }
 
     public BraidEventSource<Unit> onRefresh() {
@@ -54,7 +53,7 @@ public class BraidInspector {
         }
 
         if (this.currentApp != null) {
-            GLFW.glfwShowWindow(this.currentWindow.backendWindow.handle());
+            this.currentWindow.show();
             return;
         }
 
@@ -68,7 +67,7 @@ public class BraidInspector {
             new InspectorWidget(this.rootProxy, this.rootInstance, this)
         );
 
-        GLFW.glfwSetWindowAttrib(result.window().backendWindow.handle(), GLFW.GLFW_FLOATING, GLFW.GLFW_TRUE);
+        result.window().setAlwaysOnTop(true);
 
         this.currentApp = result.state();
         this.currentWindow = result.window();
@@ -84,7 +83,7 @@ public class BraidInspector {
     public void revealInstance(WidgetInstance<?> instance) {
         if (!this.active) return;
         this.revealEvents.sink().onEvent(new RevealEvent(instance));
-        if (currentWindow != null) GLFW.glfwShowWindow(currentWindow.backendWindow.handle());
+        if (currentWindow != null) currentWindow.show();
     }
 
     public void refresh() {

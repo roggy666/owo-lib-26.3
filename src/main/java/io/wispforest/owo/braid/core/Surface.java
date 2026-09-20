@@ -1,5 +1,6 @@
 package io.wispforest.owo.braid.core;
 
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import com.mojang.blaze3d.platform.Window;
 import io.wispforest.owo.braid.core.cursor.CursorController;
 import io.wispforest.owo.braid.core.cursor.CursorStyle;
@@ -18,6 +19,13 @@ public interface Surface {
 
     CursorStyle currentCursorStyle();
     void setCursorStyle(CursorStyle style);
+
+    /**
+     * Request the current cursor style for the frame being extracted into {@code graphics}.
+     * The game's window falls back to the default cursor in every frame in which nothing
+     * requests a cursor, so surfaces drawn into it must call this once per frame
+     */
+    default void applyCursor(GuiGraphicsExtractor graphics) {}
 
     void beginRendering();
     void endRendering();
@@ -72,6 +80,11 @@ public interface Surface {
         @Override
         public void setCursorStyle(CursorStyle style) {
             this.cursorController.setStyle(style);
+        }
+
+        @Override
+        public void applyCursor(GuiGraphicsExtractor graphics) {
+            this.cursorController.applyTo(graphics);
         }
 
         @Override

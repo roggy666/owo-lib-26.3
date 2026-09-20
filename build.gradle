@@ -1,6 +1,6 @@
 //file:noinspection GradlePackageVersionRange
 plugins {
-    id 'net.fabricmc.fabric-loom' version '1.15-SNAPSHOT'
+    id 'net.fabricmc.fabric-loom' version '1.18.2'
     id 'maven-publish'
 }
 
@@ -125,7 +125,8 @@ loom {
 }
 
 dependencies {
-    localRuntime("me.shedaniel:RoughlyEnoughItems-fabric:${project.rei_version}")
+    // REI has no 26.3 build yet; the API is only compiled against (26.2 API jar)
+    // localRuntime("me.shedaniel:RoughlyEnoughItems-fabric:${project.rei_version}")
     compileOnly("me.shedaniel:RoughlyEnoughItems-default-plugin-fabric:${project.rei_version}") {
         exclude "group": "net.fabricmc.fabric-api"
     }

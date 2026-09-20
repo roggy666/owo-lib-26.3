@@ -119,3 +119,13 @@ run/
 
 # generated sources
 /src/*/generated/
+
+# Notes and temporary markdown files
+*.md
+!README.md
+!CHANGELOG.md
+
+# Local scripts
+run_client.bat
+run_*.bat
+

@@ -1,7 +1,7 @@
 package io.wispforest.owo.ui.renderstate;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.GpuTextureView;
+import io.wispforest.owo.mixin.ui.access.PictureInPictureRendererAccessor;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -77,9 +77,11 @@ public record CubeMapElementRenderState(
             dummyContext.guiRenderState.reset();
 
             try {
+                // render into the picture-in-picture textures instead of the main target
+                var textures = (PictureInPictureRendererAccessor) this;
                 CubeMapElementRenderState.outputOverride = new OutputOverride(
-                    RenderSystem.outputColorTextureOverride,
-                    RenderSystem.outputDepthTextureOverride,
+                    textures.owo$getTextureView(),
+                    textures.owo$getDepthTextureView(),
                     0xFF000000
                 );
 

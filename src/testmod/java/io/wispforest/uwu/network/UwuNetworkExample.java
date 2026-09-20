@@ -1,5 +1,6 @@
 package io.wispforest.uwu.network;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import io.wispforest.endec.Endec;
 import io.wispforest.endec.StructEndec;
 import io.wispforest.endec.impl.RecordEndec;
@@ -11,7 +12,6 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,7 +56,7 @@ public class UwuNetworkExample {
 
     @Environment(EnvType.CLIENT)
     public static final class Client {
-        public static final KeyMapping NETWORK_TEST = new KeyMapping("key.uwu.network_test", GLFW.GLFW_KEY_U, KeyMapping.Category.MISC);
+        public static final KeyMapping NETWORK_TEST = new KeyMapping("key.uwu.network_test", InputConstants.KEY_U, KeyMapping.Category.MISC);
 
         public static void init() {
             KeyMappingHelper.registerKeyMapping(NETWORK_TEST);
